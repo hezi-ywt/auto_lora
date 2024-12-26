@@ -1,0 +1,27 @@
+# FastAPI 相关
+fastapi
+uvicorn
+python-multipart
+httpx
+
+# 文件处理
+python-magic
+rarfile
+py7zr
+imagesize
+pillow
+
+# 数据处理
+numpy
+torch
+accelerate>=0.24.0
+transformers>=4.35.0
+urllib3>=2.1.0
+huggingface-hub>=0.19.4
+safetensors
+diffusers
+toml
+
+# 其他工具
+tqdm
+rich 

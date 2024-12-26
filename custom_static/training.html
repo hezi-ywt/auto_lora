@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>训练状态 - 图像生成模型训练平台</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus@2.3.8/dist/index.css">
+    <script src="https://unpkg.com/vue@3.3.4/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus@2.3.8/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <style>
+        .training-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .task-card {
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+        }
+        
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .task-info {
+            margin: 10px 0;
+        }
+        
+        .task-progress {
+            margin: 15px 0;
+        }
+        
+        .task-logs {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .status-running { color: #409EFF; }
+        .status-completed { color: #67C23A; }
+        .status-failed { color: #F56C6C; }
+        .status-queued { color: #E6A23C; }
+        
+        .file-manager {
+            margin-top: 20px;
+        }
+        
+        .file-list {
+            margin-top: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="training-container">
+            <el-page-header @back="goBack" title="返回">
+                <template #content>
+                    <span class="font-600 mr-3"> 训练状态 </span>
+                </template>
+            </el-page-header>
+            
+            <div class="task-list" style="margin-top: 20px;">
+                <div v-for="task in tasks" :key="task.task_id" class="task-card">
+                    <div class="task-header">
+                        <h3>
+                            训练任务 #{{ task.task_id }}
+                            <el-tag :type="getStatusType(task.status)" size="small">
+                                {{ getStatusText(task.status) }}
+                            </el-tag>
+                        </h3>
+                        <div class="task-actions">
+                            <el-button 
+                                v-if="task.status === 'running'"
+                                type="danger" 
+                                size="small" 
+                                @click="stopTraining(task.task_id)"
+                            >
+                                停止训练
+                            </el-button>
+                        </div>
+                    </div>
+                    
+                    <div class="task-info">
+                        <p>模型：{{ task.model_name }}</p>
+                        <p>文件夹：{{ task.folder }}</p>
+                        <p>开始时间：{{ formatTime(task.start_time) }}</p>
+                        <p v-if="task.output_dir">输出目录：
+                            <el-button 
+                                type="text" 
+                                @click="openOutputDir(task.output_dir)"
+                                :disabled="!task.output_dir"
+                            >
+                                {{ task.output_dir }}
+                            </el-button>
+                        </p>
+                        <div v-if="task.error" class="error-message" style="color: #F56C6C;">
+                            错误信息：{{ task.error }}
+                        </div>
+                        <div v-if="task.output_dir" class="file-manager">
+                            <el-divider>输出文件</el-divider>
+                            <div class="file-list">
+                                <el-table 
+                                    v-loading="task.loadingFiles"
+                                    :data="task.files || []"
+                                    style="width: 100%"
+                                >
+                                    <el-table-column prop="name" label="文件名">
+                                        <template #default="{ row }">
+                                            <el-icon v-if="row.type === 'directory'"><Folder /></el-icon>
+                                            <el-icon v-else><Document /></el-icon>
+                                            {{ row.name }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="size" label="大小" width="120">
+                                        <template #default="{ row }">
+                                            {{ formatFileSize(row.size) }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="modified" label="修改时间" width="180">
+                                        <template #default="{ row }">
+                                            {{ formatTime(row.modified) }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="150" align="right">
+                                        <template #default="{ row }">
+                                            <el-button 
+                                                v-if="row.type === 'file'"
+                                                type="primary" 
+                                                size="small" 
+                                                link
+                                                @click="downloadFile(row.path)"
+                                            >
+                                                下载
+                                            </el-button>
+                                            <el-button 
+                                                v-if="row.type === 'directory'"
+                                                type="primary" 
+                                                size="small" 
+                                                link
+                                                @click="openOutputDir(row.path)"
+                                            >
+                                                打开
+                                            </el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="task-progress">
+                        <el-progress 
+                            :percentage="task.progress" 
+                            :status="getProgressStatus(task.status)"
+                        />
+                    </div>
+                    
+                    <div v-if="task.logs && task.logs.length" class="task-logs">
+                        <div v-for="(log, index) in task.logs" :key="index">
+                            {{ log }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, onUnmounted } = Vue
+        const { Folder, Document } = ElementPlusIconsVue
+        
+        const app = createApp({
+            setup() {
+                const tasks = ref([])
+                let ws = null
+                
+                const connectWebSocket = () => {
+                    const clientId = `training_${Date.now()}`
+                    ws = new WebSocket(`ws://${window.location.host}/ws/${clientId}`)
+                    
+                    ws.onmessage = (event) => {
+                        const data = JSON.parse(event.data)
+                        if (data.type === 'training_progress') {
+                            updateTaskProgress(data)
+                        }
+                    }
+                    
+                    ws.onclose = () => {
+                        setTimeout(connectWebSocket, 1000)
+                    }
+                }
+                
+                const updateTaskProgress = (data) => {
+                    const taskIndex = tasks.value.findIndex(t => t.task_id === data.task_id)
+                    if (taskIndex !== -1) {
+                        tasks.value[taskIndex].progress = data.progress
+                        tasks.value[taskIndex].status = data.status
+                    }
+                }
+                
+                const loadTasks = async () => {
+                    try {
+                        const response = await fetch('/api/training-tasks')
+                        if (response.ok) {
+                            const data = await response.json()
+                            tasks.value = data.tasks
+                            tasks.value.forEach(task => loadFiles(task))
+                        }
+                    } catch (error) {
+                        console.error('加载任务失败:', error)
+                    }
+                }
+                
+                const stopTraining = async (taskId) => {
+                    try {
+                        const response = await fetch(`/api/stop-training/${taskId}`, {
+                            method: 'POST'
+                        })
+                        if (response.ok) {
+                            ElMessage.success('已停止训练')
+                        }
+                    } catch (error) {
+                        ElMessage.error('停止训练失败')
+                    }
+                }
+                
+                const getStatusType = (status) => {
+                    const types = {
+                        'running': 'primary',
+                        'completed': 'success',
+                        'failed': 'danger',
+                        'queued': 'warning'
+                    }
+                    return types[status] || 'info'
+                }
+                
+                const getStatusText = (status) => {
+                    const texts = {
+                        'running': '训练中',
+                        'completed': '已完���',
+                        'failed': '失败',
+                        'queued': '排队中'
+                    }
+                    return texts[status] || status
+                }
+                
+                const getProgressStatus = (status) => {
+                    if (status === 'completed') return 'success'
+                    if (status === 'failed') return 'exception'
+                    return ''
+                }
+                
+                const formatTime = (timeStr) => {
+                    return new Date(timeStr).toLocaleString()
+                }
+                
+                const goBack = () => {
+                    window.history.back()
+                }
+                
+                const openOutputDir = async (dir) => {
+                    try {
+                        const response = await fetch(`/api/open-dir?path=${encodeURIComponent(dir)}`, {
+                            method: 'POST'
+                        });
+                        if (!response.ok) {
+                            throw new Error('打开目录失败');
+                        }
+                        ElMessage.success('已打开输出目录');
+                    } catch (error) {
+                        ElMessage.error('打开目录失败');
+                        console.error('打开目录错误:', error);
+                    }
+                };
+                
+                const formatFileSize = (size) => {
+                    if (size === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(size) / Math.log(k));
+                    return parseFloat((size / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                };
+                
+                const loadFiles = async (task) => {
+                    if (!task.output_dir) return;
+                    
+                    task.loadingFiles = true;
+                    try {
+                        const response = await fetch(`/api/list-files?path=${encodeURIComponent(task.output_dir)}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            task.files = data.files;
+                        }
+                    } catch (error) {
+                        console.error('加载文件列表失败:', error);
+                        ElMessage.error('加载文件列表失败');
+                    } finally {
+                        task.loadingFiles = false;
+                    }
+                };
+                
+                const downloadFile = async (path) => {
+                    try {
+                        const response = await fetch(`/api/download-file?path=${encodeURIComponent(path)}`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = path.split('/').pop();
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                        }
+                    } catch (error) {
+                        console.error('下载文件失败:', error);
+                        ElMessage.error('下载文件失败');
+                    }
+                };
+                
+                onMounted(() => {
+                    loadTasks()
+                    connectWebSocket()
+                })
+                
+                onUnmounted(() => {
+                    if (ws) ws.close()
+                })
+                
+                return {
+                    tasks,
+                    stopTraining,
+                    getStatusType,
+                    getStatusText,
+                    getProgressStatus,
+                    formatTime,
+                    goBack,
+                    openOutputDir,
+                    formatFileSize,
+                    downloadFile,
+                    Folder,
+                    Document,
+                }
+            }
+        })
+        
+        app.use(ElementPlus)
+        app.component('Folder', Folder)
+        app.component('Document', Document)
+        app.mount('#app')
+    </script>
+</body>
+</html> 

@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>训练工作区 - 图像生成模型训练平台</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus@2.3.8/dist/index.css">
+    <script src="https://unpkg.com/vue@3.3.4/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus@2.3.8/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <style>
+        :root {
+            --primary-color: #409EFF;
+            --background-color: #f5f7fa;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--background-color);
+        }
+
+        .workspace-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .workspace-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+        }
+
+        .settings-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+        }
+
+        .settings-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .folders-list {
+            margin: 20px 0;
+        }
+
+        .folder-item {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+        }
+
+        .folder-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+
+        .folder-title {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #303133;
+        }
+
+        .folder-icon {
+            display: none;
+        }
+
+        .folder-settings {
+            margin-top: 15px;
+            margin-left: 24px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+
+        .folder-settings .el-form-item {
+            margin-bottom: 15px;
+        }
+
+        .folder-settings .el-form-item__label {
+            font-weight: 500;
+            color: #606266;
+        }
+
+        .folder-settings .el-textarea__inner {
+            font-family: inherit;
+        }
+
+        .el-form-item {
+            margin-bottom: 15px;
+        }
+
+        .progress-container {
+            flex: 1;
+            margin-right: 20px;
+        }
+        
+        .progress-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .tagging-progress,
+        .tagging-results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .folder-progress-list,
+        .results-list {
+            margin-top: 20px;
+        }
+
+        .folder-progress-item,
+        .result-item {
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .folder-progress-header,
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .folder-tags,
+        .tags-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .top-tags h5 {
+            margin: 10px 0;
+            color: #666;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .header-top h2 {
+            margin: 0;
+        }
+
+        .form-help {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .workspace-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="workspace-container">
+            <!-- 工作区头部 -->
+            <div class="workspace-header">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>工作区: {{ folderName }}</h2>
+                    <div class="header-actions">
+                        <el-button 
+                            type="primary" 
+                            @click="goToTrainingStatus"
+                            :icon="Monitor"
+                        >
+                            查看训练状态
+                        </el-button>
+                        <el-button 
+                            type="success" 
+                            @click="startTraining" 
+                            :loading="isTraining"
+                            :disabled="!trainingSettings.baseModel"
+                        >
+                            开始训练
+                        </el-button>
+                    </div>
+                </div>
+                <el-breadcrumb separator="/">
+                    <el-breadcrumb-item :to="{ path: '/' }">主页</el-breadcrumb-item>
+                    <el-breadcrumb-item>{{ folderName }}</el-breadcrumb-item>
+                </el-breadcrumb>
+            </div>
+
+            <!-- 自动打标设置 -->
+            <div class="settings-card">
+                <div class="settings-title">自动打标设置</div>
+                <el-form :model="tagSettings" label-width="120px">
+                    <el-form-item label="标签模型">
+                        <el-select 
+                            v-model="tagSettings.model" 
+                            placeholder="选择标签模型" 
+                            style="width: 100%"
+                            clearable
+                        >
+                            <el-option 
+                                v-for="model in modelOptions" 
+                                :key="model.value" 
+                                :label="model.label" 
+                                :value="model.value"
+                            />
+                        </el-select>
+                    </el-form-item>
+
+                    <!-- 添加文件夹列表和设置 -->
+                    <div class="folders-list">
+                        <div v-for="folder in folders" 
+                             :key="folder.path" 
+                             class="folder-item"
+                             :style="{ marginLeft: `${folder.level * 20}px` }">
+                            <div class="folder-header">
+                                <div class="folder-title">
+                                    <span>{{ folder.name }}</span>
+                                </div>
+                                <el-switch 
+                                    v-model="folder.expanded"
+                                    @change="handleFolderToggle(folder)"
+                                />
+                            </div>
+                            
+                            <div v-show="folder.expanded" class="folder-settings">
+                                <el-form label-position="top">
+                                    <el-form-item label="角色标签">
+                                        <el-input 
+                                            v-model="folder.settings.character"
+                                            type="textarea"
+                                            placeholder="输入角色标签，用逗号分隔"
+                                            :rows="2"
+                                            resize="none"
+                                        />
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="版权标签">
+                                        <el-input 
+                                            v-model="folder.settings.copyright"
+                                            type="textarea"
+                                            placeholder="输入版权标签，用逗号分隔"
+                                            :rows="2"
+                                            resize="none"
+                                        />
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="画师标签">
+                                        <el-input 
+                                            v-model="folder.settings.artist"
+                                            type="textarea"
+                                            placeholder="输入画师标签，用逗号分隔"
+                                            :rows="2"
+                                            resize="none"
+                                        />
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="特殊标签">
+                                        <el-input 
+                                            v-model="folder.settings.special"
+                                            type="textarea"
+                                            placeholder="输入特殊标签，用逗号分隔"
+                                            :rows="2"
+                                            resize="none"
+                                        />
+                                    </el-form-item>
+                                </el-form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-bar">
+                        <div v-if="isTagging" class="progress-container">
+                            <el-progress 
+                                :percentage="tagProgress" 
+                                :format="progressFormat"
+                                :status="tagProgress >= 100 ? 'success' : ''"
+                            />
+                            <div class="progress-info">{{ progressInfo }}</div>
+                        </div>
+                        <el-button 
+                            type="primary" 
+                            @click="handleAutoTagging"
+                            :loading="isTagging"
+                        >
+                            {{ isTagging ? '正在打标...' : '开始自动打标' }}
+                        </el-button>
+                    </div>
+                </el-form>
+            </div>
+
+            <!-- 训练参数设置 -->
+            <div class="settings-card">
+                <div class="settings-title">训练参数设置</div>
+                <el-form :model="trainingSettings" label-width="120px">
+                    <el-form-item label="基础模型">
+                        <el-select 
+                            v-model="trainingSettings.baseModel" 
+                            placeholder="选择基础模型"
+                            style="width: 100%"
+                        >
+                            <el-option 
+                                v-for="model in modelOptions" 
+                                :key="model.value" 
+                                :label="model.label" 
+                                :value="model.value"
+                            >
+                                <span>{{ model.label }}</span>
+                                <span style="float: right; color: #8492a6; font-size: 13px">
+                                    {{ model.type }}
+                                </span>
+                            </el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="学习率">
+                        <el-input-number 
+                            v-model="trainingSettings.learningRate" 
+                            :min="0.000001" 
+                            :max="0.01" 
+                            :step="0.000001" 
+                            :precision="6"
+                            :controls="false"
+                        />
+                        <div class="form-help">默认值: 0.0001</div>
+                    </el-form-item>
+                    <el-form-item label="训练步数">
+                        <el-input-number 
+                            v-model="trainingSettings.steps" 
+                            :min="100" 
+                            :max="10000" 
+                            :step="100"
+                            :controls="false"
+                        />
+                        <div class="form-help">默认值: 100</div>
+                    </el-form-item>
+                    <el-form-item label="批次大小">
+                        <el-input-number 
+                            v-model="trainingSettings.batchSize" 
+                            :min="1" 
+                            :max="32" 
+                            :step="1" />
+                    </el-form-item>
+                    <el-form-item label="网络维度">
+                        <el-input-number 
+                            v-model="trainingSettings.networkDim" 
+                            :min="4" 
+                            :max="128" 
+                            :step="4"
+                            :controls="false"
+                        />
+                        <div class="form-help">默认值: 8 (Network Alpha 将自动设置为维度的一半)</div>
+                    </el-form-item>
+                    <el-form-item label="模型后缀">
+                        <el-input 
+                            v-model="trainingSettings.modelSuffix" 
+                            placeholder="输入模型后缀"
+                            :prefix="folderName"
+                        >
+                            <template #prepend>{{ folderName }}</template>
+                        </el-input>
+                        <div class="form-help">默认值: _lora (最终模型名: {{ folderName }}{{ trainingSettings.modelSuffix }})</div>
+                    </el-form-item>
+                    <div class="action-bar">
+                        <el-button @click="saveSettings" plain>保存设置</el-button>
+                        <el-button type="primary" @click="startTraining">
+                            开始训练
+                        </el-button>
+                    </div>
+                </el-form>
+            </div>
+
+            <!-- 添加打标进度界面 -->
+            <div v-if="isTagging" class="tagging-progress">
+                <h3>自动打标进度</h3>
+                <div class="progress-overview">
+                    <el-progress 
+                        :percentage="tagProgress" 
+                        :format="progressFormat"
+                        :status="tagProgress >= 100 ? 'success' : ''"
+                    />
+                    <div class="progress-info">{{ progressInfo }}</div>
+                </div>
+                
+                <!-- 文件夹进度列表 -->
+                <div class="folder-progress-list">
+                    <div v-for="result in tagResults" 
+                         :key="result.folder" 
+                         class="folder-progress-item"
+                    >
+                        <div class="folder-progress-header">
+                            <span>{{ result.folder }}</span>
+                            <span>{{ result.processed }} 个文件</span>
+                        </div>
+                        <div v-if="result.topTags" class="folder-tags">
+                            <el-tag 
+                                v-for="tag in result.topTags" 
+                                :key="tag.name"
+                                size="small"
+                                :type="getTagType(tag.type)"
+                            >
+                                {{ tag.name }} ({{ tag.count }})
+                            </el-tag>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 添加结果展示界面 -->
+            <div v-if="showResults" class="tagging-results">
+                <h3>打标结果统计</h3>
+                <div class="results-list">
+                    <div v-for="result in tagResults" 
+                         :key="result.folder" 
+                         class="result-item"
+                    >
+                        <div class="result-header">
+                            <h4>{{ result.folder }}</h4>
+                            <span>处理了 {{ result.processed }} 个文件</span>
+                        </div>
+                        <div class="top-tags">
+                            <h5>最常标签：</h5>
+                            <div class="tags-grid">
+                                <el-tag 
+                                    v-for="tag in result.topTags" 
+                                    :key="tag.name"
+                                    size="small"
+                                    :type="getTagType(tag.type)"
+                                >
+                                    {{ tag.name }} ({{ tag.count }})
+                                </el-tag>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, watch } = Vue;
+        const { Monitor } = ElementPlusIconsVue;
+
+        const app = createApp({
+            setup() {
+                const folderName = ref('');
+                const modelOptions = ref([]);
+
+                const tagSettings = ref({
+                    model: 'wd-swinv2-tagger-v3',
+                });
+                const folders = ref([]);
+
+                const trainingSettings = ref({
+                    baseModel: '',
+                    learningRate: 0.0001,
+                    steps: 100,
+                    batchSize: 4,
+                    networkDim: 8,
+                    modelSuffix: '_lora'
+                });
+
+                const isTagging = ref(false);
+                const tagProgress = ref(0);
+                const progressInfo = ref('');
+                
+                const showResults = ref(false);
+                const tagResults = ref([]);
+                
+                // 格式化进度显示
+                const progressFormat = (percentage) => {
+                    return percentage === 100 ? '完成' : `${percentage}%`;
+                };
+
+                // 获取文件夹列表
+                const loadFolders = async (path = '') => {
+                    try {
+                        console.log(`Loading folders for path: ${path}`);
+                        const response = await fetch(`/api/workspace/images/${path}`);
+                        console.log('Response status:', response.status);
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log('API response data:', data);
+
+                            // 创建文件夹映射，用于快速查找父文件夹
+                            const folderMap = new Map();
+
+                            // 按层级排序文件夹确保父文件夹在前
+                            const sortedFolders = [...data.images].sort((a, b) => a.level - b.level);
+
+                            // 处理文件夹列表
+                            const folders = [];
+                            
+                            // 先添加根文件夹
+                            const rootFolders = sortedFolders.filter(f => f.level === 0);
+                            for (const rootFolder of rootFolders) {
+                                const newFolder = {
+                                    name: rootFolder.name,
+                                    path: rootFolder.path,
+                                    expanded: false,
+                                    level: rootFolder.level,
+                                    hasChildren: rootFolder.has_children,
+                                    parent: rootFolder.parent,
+                                    settings: {
+                                        character: '',
+                                        copyright: '',
+                                        artist: '',
+                                        special: ''
+                                    }
+                                };
+                                folderMap.set(rootFolder.path, newFolder);
+                                folders.push(newFolder);
+                            }
+
+                            // 添加子文件夹
+                            const subFolders = sortedFolders.filter(f => f.level > 0);
+                            for (const folder of subFolders) {
+                                const newFolder = {
+                                    name: folder.name,
+                                    path: folder.path,
+                                    expanded: false,
+                                    level: folder.level,
+                                    hasChildren: folder.has_children,
+                                    parent: folder.parent,
+                                    settings: {
+                                        character: '',
+                                        copyright: '',
+                                        artist: '',
+                                        special: ''
+                                    }
+                                };
+                                folderMap.set(folder.path, newFolder);
+
+                                // 找到父文件夹并添加到其后面
+                                const parentIndex = folders.findIndex(f => f.path === folder.parent);
+                                if (parentIndex !== -1) {
+                                    folders.splice(parentIndex + 1, 0, newFolder);
+                                } else {
+                                    folders.push(newFolder);
+                                }
+                            }
+
+                            // 设置继承关系
+                            folders.forEach(folder => {
+                                if (folder.parent) {
+                                    const parentFolder = folderMap.get(folder.parent);
+                                    if (parentFolder) {
+                                        // 初始继承父文件夹的设置
+                                        folder.settings = { ...parentFolder.settings };
+                                        
+                                        // 监听父文件夹设置的变化
+                                        watch(() => parentFolder.settings, (newSettings) => {
+                                            // 深拷贝设置以避免引用问题
+                                            folder.settings = JSON.parse(JSON.stringify(newSettings));
+                                        }, { deep: true });
+                                    }
+                                }
+                            });
+
+                            console.log('Processed folders:', folders);
+                            return folders;
+                        } else {
+                            console.error('API response not ok:', response);
+                        }
+                    } catch (error) {
+                        console.error('Load folders error:', error);
+                        ElMessage.error('加载文件夹失败');
+                    }
+                    return [];
+                };
+
+                // 获取标签类型
+                const getTagType = (tagType) => {
+                    const types = {
+                        'character': '',
+                        'copyright': 'success',
+                        'artist': 'warning',
+                        'special': 'info'
+                    };
+                    return types[tagType] || '';
+                };
+                
+                // 处理标签统计
+                const processTagResults = (results) => {
+                    return results.map(result => {
+                        // 统计标签频率
+                        const tagCounts = {};
+                        result.details.tags.forEach(tag => {
+                            if (!tagCounts[tag.name]) {
+                                tagCounts[tag.name] = {
+                                    name: tag.name,
+                                    count: 0,
+                                    type: tag.type
+                                };
+                            }
+                            tagCounts[tag.name].count++;
+                        });
+                        
+                        // 获取前8个最常见的标签
+                        const topTags = Object.values(tagCounts)
+                            .sort((a, b) => b.count - a.count)
+                            .slice(0, 8);
+                        
+                        return {
+                            ...result,
+                            topTags
+                        };
+                    });
+                };
+                
+                // 修改 handleAutoTagging 函数
+                const handleAutoTagging = () => {
+                    console.log('Button clicked - handleAutoTagging');
+                    
+                    if (!tagSettings.value.model) {
+                        console.error('No model selected');
+                        ElMessage.error('请选择标签模型');
+                        return;
+                    }
+
+                    if (!folderName.value) {
+                        console.error('No folder name');
+                        ElMessage.error('文件夹名称未设置');
+                        return;
+                    }
+                    
+                    if (isTagging.value) {
+                        console.log('Already tagging, returning...');
+                        return;
+                    }
+
+                    isTagging.value = true;
+                    console.log('Starting auto-tagging process...');
+
+                    // 构建请求数据
+                    const requestData = {
+                        folder: folderName.value,
+                        model: tagSettings.value.model,
+                        folder_settings: {}
+                    };
+
+                    // 收集所有文件夹的设置
+                    folders.value.forEach(folder => {
+                        const folderPath = folder.path.startsWith(folderName.value) ? 
+                            folder.path : 
+                            `${folderName.value}/${folder.path}`;
+                        requestData.folder_settings[folderPath] = folder.settings;
+                        console.log(`Adding settings for folder: ${folderPath}`, folder.settings);
+                    });
+
+                    console.log('Sending request with data:', requestData);
+
+                    // 重置状态
+                    tagProgress.value = 0;
+                    progressInfo.value = '准备开始...';
+                    tagResults.value = [];
+                    showResults.value = false;
+                    
+                    // 发送请求
+                    fetch('/api/auto-tag', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestData)
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(response.statusText);
+                        }
+                        
+                        // 创建响应读取器
+                        const reader = response.body.getReader();
+                        let receivedLength = 0;
+                        
+                        // 处理数据流
+                        return new ReadableStream({
+                            start(controller) {
+                                function push() {
+                                    reader.read().then(({done, value}) => {
+                                        if (done) {
+                                            controller.close();
+                                            return;
+                                        }
+                                        
+                                        try {
+                                            const text = new TextDecoder().decode(value);
+                                            const lines = text.split('\n').filter(line => line.trim());
+                                            
+                                            lines.forEach(line => {
+                                                try {
+                                                    const data = JSON.parse(line);
+                                                    if (data.progress) {
+                                                        tagProgress.value = Math.round(data.progress);
+                                                    }
+                                                    if (data.info) {
+                                                        progressInfo.value = data.info;
+                                                    }
+                                                } catch (e) {
+                                                    console.log('Progress update:', line);
+                                                }
+                                            });
+                                        } catch (e) {
+                                            console.error('Error parsing progress:', e);
+                                        }
+                                        
+                                        controller.enqueue(value);
+                                        push();
+                                    });
+                                }
+                                
+                                push();
+                            }
+                        });
+                    })
+                    .then(stream => new Response(stream))
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Success data:', data);
+                        tagResults.value = processTagResults(data.folder_results);
+                        showResults.value = true;
+                        tagProgress.value = 100;
+                        progressInfo.value = '处理完成';
+                        ElMessage.success(`自动打标完成，处理了 ${data.total_processed} 个文件`);
+                    })
+                    .catch(error => {
+                        console.error('Error details:', error);
+                        ElMessage.error(error.message || '自动打标失败');
+                        progressInfo.value = '处理失败';
+                    })
+                    .finally(() => {
+                        console.log('Request completed');
+                        isTagging.value = false;
+                    });
+                };
+
+                // 保存训练设置
+                const saveSettings = async () => {
+                    try {
+                        const response = await fetch('/api/save-training-settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                folder: folderName.value,
+                                settings: trainingSettings.value
+                            })
+                        });
+
+                        if (response.ok) {
+                            ElMessage.success('设置已保存');
+                        } else {
+                            throw new Error('保存设置失败');
+                        }
+                    } catch (error) {
+                        console.error('保存设置错误:', error);
+                        ElMessage.error('保存设置失败');
+                    }
+                };
+
+                // 修改开始训练函数
+                const startTraining = async () => {
+                    try {
+                        // 先保存训练���置
+                        const saveResponse = await fetch('/api/save-training-settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                folder: folderName.value,
+                                settings: trainingSettings.value
+                            })
+                        });
+
+                        if (!saveResponse.ok) {
+                            const error = await saveResponse.json();
+                            throw new Error(error.detail || '保存训练设置失败');
+                        }
+
+                        // 然后开始训练
+                        const response = await fetch('/api/start-training', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                folder: folderName.value,
+                                settings: trainingSettings.value
+                            })
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            console.log('Training started:', result);
+                            ElMessage.success('训练任务已启动');
+                            
+                            // 跳转到训练页面
+                            window.location.href = `/training/${folderName.value}`;
+                        } else {
+                            const error = await response.json();
+                            throw new Error(error.detail || '启动训练失败');
+                        }
+                    } catch (error) {
+                        console.error('训练错误:', error);
+                        ElMessage.error(error.message || '启动训练失败');
+                    }
+                };
+
+                // 修改 handleFolderToggle 函数
+                const handleFolderToggle = async (folder) => {
+                    console.log('Toggling folder:', folder.name, 'expanded:', folder.expanded);
+                    
+                    if (folder.expanded && !folder.loaded && folder.hasChildren) {
+                        // 加载子文件夹
+                        const children = await loadFolders(folder.path);
+                        folder.children = children;
+                        folder.loaded = true;
+                        
+                        // 设置继承关系
+                        children.forEach(child => {
+                            watch(() => folder.settings, (newSettings) => {
+                                child.settings = { ...newSettings };
+                            }, { deep: true });
+                        });
+                    }
+                };
+
+                // 修改返回函数
+                const goBack = () => {
+                    // 获取当前页面类型
+                    const path = window.location.pathname;
+                    if (path.includes('/workspace/')) {
+                        // 如果是工作区页面，返回到上一页面
+                        window.location.href = '/';
+                    } else if (path.includes('/training/')) {
+                        // 如果是训练页面，返回到工作区页面
+                        const match = path.match(/\/training\/(.*)/);
+                        if (match) {
+                            const folderPath = decodeURIComponent(match[1]);
+                            window.location.href = `/workspace/${folderPath}`;
+                        }
+                    }
+                };
+
+                // 添加加载模型列表的函数
+                const loadBaseModels = async () => {
+                    try {
+                        const response = await fetch('/api/base-models');
+                        if (!response.ok) {
+                            throw new Error('获取模型列表失败');
+                        }
+                        const data = await response.json();
+                        modelOptions.value = data.models;
+                        
+                        // 如果有模型，设置默认选中第一个
+                        if (data.models.length > 0) {
+                            trainingSettings.value.baseModel = data.models[0].value;
+                        }
+                    } catch (error) {
+                        console.error('加载模型列表错误:', error);
+                        ElMessage.error('加载模型列表失败');
+                    }
+                };
+
+                // 添加跳转函数
+                const goToTrainingStatus = () => {
+                    window.location.href = '/static/training.html';
+                };
+
+                onMounted(async () => {
+                    console.log('Component mounted');
+                    const path = window.location.pathname;
+                    const match = path.match(/\/workspace\/(.*)/);
+                    if (match) {
+                        folderName.value = decodeURIComponent(match[1]);
+                        console.log('Folder name:', folderName.value);
+                        folders.value = await loadFolders();
+                        console.log('Loaded folders:', folders.value);
+                        
+                        // 加载基础模型列表
+                        await loadBaseModels();
+                    } else {
+                        console.warn('No folder name found in path');
+                    }
+                });
+
+                return {
+                    folderName,
+                    tagSettings,
+                    folders,
+                    trainingSettings,
+                    saveSettings,
+                    startTraining,
+                    modelOptions,
+                    isTagging,
+                    handleAutoTagging,
+                    tagProgress,
+                    progressInfo,
+                    progressFormat,
+                    showResults,
+                    tagResults,
+                    getTagType,
+                    handleFolderToggle,
+                    goBack,
+                    goToTrainingStatus,
+                    Monitor,
+                };
+            }
+        });
+
+        // 添加错误处理
+        app.config.errorHandler = (err, vm, info) => {
+            console.error('Vue Error:', err);
+            console.error('Component:', vm);
+            console.error('Info:', info);
+        };
+
+        // 确保先安装 ElementPlus
+        app.use(ElementPlus);
+
+        // 然后再挂载应用
+        try {
+            const mountedApp = app.mount('#app');
+            console.log('App mounted successfully:', mountedApp);
+            
+            // 试全局访问
+            window.vueApp = mountedApp;
+        } catch (error) {
+            console.error('Failed to mount app:', error);
+        }
+
+        // 注册图标组件
+        app.component('Monitor', Monitor);
+    </script>
+</body>
+</html> 

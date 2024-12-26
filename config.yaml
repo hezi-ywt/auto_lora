@@ -1,0 +1,33 @@
+# 路径配置
+custom_static_dir: "custom_static"
+custom_upload_dir: "custom_static/uploads"
+custom_annotation_dir: "custom_static/annotations"
+custom_sd_scripts_dir: "sd-scripts"
+custom_lora_output_dir: "custom_static/lora"
+custom_pretrained_model_dir: "/mnt/e/sdwebui_model/Stable-diffusion"
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+
+# 上传配置
+upload:
+  allowed_extensions: [".png", ".jpg", ".jpeg", ".gif"]
+  max_file_size: 10485760  # 10MB in bytes
+
+# 分页配置
+pagination:
+  default_page_size: 20
+  max_page_size: 100
+
+# 训练相关配置
+training:
+  output_dir: "custom_static/models"
+  temp_dir: "custom_static/temp"
+  max_epochs: 100
+  batch_size: 4 
+
+# 添加 tagger API 配置
+# tagger_api_url: "http://localhost:8001"  # 根据实际 tagger 服务地址修改 
